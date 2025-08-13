@@ -1,4 +1,4 @@
-﻿using System;
+﻿using GongSolutions.Wpf.DragDrop.Utilities;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
@@ -7,16 +7,16 @@ namespace GongSolutions.Wpf.DragDrop
 {
     public class DropTargetHighlightAdorner : DropTargetAdorner
     {
-        [Obsolete("This constructor is obsolete and will be deleted in next major release.")]
-        public DropTargetHighlightAdorner(UIElement adornedElement)
-            : base(adornedElement, (DropInfo)null)
-        {
-        }
-
-        public DropTargetHighlightAdorner(UIElement adornedElement, DropInfo dropInfo)
+        public DropTargetHighlightAdorner(UIElement adornedElement, IDropInfo dropInfo)
             : base(adornedElement, dropInfo)
         {
         }
+
+        /// <summary>
+        /// The background brush for the highlight rectangle for TreeViewItem. This can be overridden through
+        /// <see cref="DragDrop.DropTargetHighlightBrushProperty"/>. The default value is <see cref="Brushes.Transparent"/>.
+        /// </summary>
+        public Brush Background { get; set; } = Brushes.Transparent;
 
         /// <summary>
         /// When overridden in a derived class, participates in rendering operations that are directed by the layout system.
@@ -35,18 +35,22 @@ namespace GongSolutions.Wpf.DragDrop
                 var tvItem = visualTargetItem as TreeViewItem;
                 if (tvItem != null && VisualTreeHelper.GetChildrenCount(tvItem) > 0)
                 {
-                    var descendant = VisualTreeHelper.GetDescendantBounds(tvItem);
+                    var descendant = VisualTreeExtensions.GetVisibleDescendantBounds(tvItem);
                     var translatePoint = tvItem.TranslatePoint(new Point(), this.AdornedElement);
                     var itemRect = new Rect(translatePoint, tvItem.RenderSize);
                     descendant.Union(itemRect);
                     translatePoint.Offset(1, 0);
                     rect = new Rect(translatePoint, new Size(descendant.Width - translatePoint.X - 1, tvItem.ActualHeight));
                 }
+
                 if (rect.IsEmpty)
                 {
-                    rect = new Rect(visualTargetItem.TranslatePoint(new Point(), this.AdornedElement), VisualTreeHelper.GetDescendantBounds(visualTargetItem).Size);
+                    var bounds = VisualTreeExtensions.GetVisibleDescendantBounds(visualTargetItem);
+                    var location = visualTargetItem.TranslatePoint(bounds.Location, this.AdornedElement);
+                    rect = new Rect(location, bounds.Size);
                 }
-                drawingContext.DrawRoundedRectangle(null, this.Pen, rect, 2, 2);
+
+                drawingContext.DrawRoundedRectangle(this.Background, this.Pen, rect, 2, 2);
             }
         }
     }

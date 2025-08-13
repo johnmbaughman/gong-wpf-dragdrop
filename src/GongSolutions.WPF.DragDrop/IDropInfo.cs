@@ -11,14 +11,13 @@ namespace GongSolutions.Wpf.DragDrop
         /// <summary>
         /// Gets the drag data.
         /// </summary>
-        /// 
         /// <remarks>
         /// If the drag came from within the framework, this will hold:
         /// 
         /// - The dragged data if a single item was dragged.
         /// - A typed IEnumerable if multiple items were dragged.
         /// </remarks>
-        object Data { get; }
+        object Data { get; set; }
 
         /// <summary>
         /// Gets a <see cref="DragInfo"/> object holding information about the source of the drag, 
@@ -34,17 +33,34 @@ namespace GongSolutions.Wpf.DragDrop
         /// <summary>
         /// Gets or sets the class of drop target to display.
         /// </summary>
-        /// 
         /// <remarks>
-        /// The standard drop target adorner classes are held in the <see cref="DropTargetAdorners"/>
+        /// The standard drop target Adorner classes are held in the <see cref="DropTargetAdorners"/>
         /// class.
         /// </remarks>
         Type DropTargetAdorner { get; set; }
 
         /// <summary>
+        /// Gets or sets the class of drop target to display for hint.
+        /// </summary>
+        /// <remarks>
+        /// The standard drop target Adorner classes are held in the <see cref="DropTargetAdorners"/>
+        /// class.
+        /// </remarks>
+        Type DropTargetHintAdorner { get; set; }
+
+        /// <summary>
+        /// The hint state to display different colors for hints.
+        /// </summary>
+        DropHintState DropTargetHintState { get; set; }
+
+        /// <summary>
+        /// Get or set the text that is displayed when the drop hint is displayed.
+        /// </summary>
+        string DropHintText { get; set; }
+
+        /// <summary>
         /// Gets or sets the allowed effects for the drop.
         /// </summary>
-        /// 
         /// <remarks>
         /// This must be set to a value other than <see cref="DragDropEffects.None"/> by a drop handler in order 
         /// for a drop to be possible.
@@ -68,7 +84,6 @@ namespace GongSolutions.Wpf.DragDrop
         /// <summary>
         /// Gets the collection that the target ItemsControl is bound to.
         /// </summary>
-        /// 
         /// <remarks>
         /// If the current drop target is unbound or not an ItemsControl, this will be null.
         /// </remarks>
@@ -77,7 +92,6 @@ namespace GongSolutions.Wpf.DragDrop
         /// <summary>
         /// Gets the object that the current drop target is bound to.
         /// </summary>
-        /// 
         /// <remarks>
         /// If the current drop target is unbound or not an ItemsControl, this will be null.
         /// </remarks>
@@ -86,12 +100,21 @@ namespace GongSolutions.Wpf.DragDrop
         /// <summary>
         /// Gets the current group target.
         /// </summary>
-        /// 
         /// <remarks>
         /// If the drag is currently over an ItemsControl with groups, describes the group that
         /// the drag is currently over.
         /// </remarks>
         CollectionViewGroup TargetGroup { get; }
+
+        /// <summary>
+        /// Gets the ScrollViewer control for the visual target.
+        /// </summary>
+        ScrollViewer TargetScrollViewer { get; }
+
+        /// <summary>
+        /// Gets or Sets the ScrollingMode for the drop action.
+        /// </summary>
+        ScrollingMode TargetScrollingMode { get; }
 
         /// <summary>
         /// Gets the control that is the current drop target.
@@ -101,7 +124,6 @@ namespace GongSolutions.Wpf.DragDrop
         /// <summary>
         /// Gets the item in an ItemsControl that is the current drop target.
         /// </summary>
-        /// 
         /// <remarks>
         /// If the current drop target is unbound or not an ItemsControl, this will be null.
         /// </remarks>
@@ -118,12 +140,12 @@ namespace GongSolutions.Wpf.DragDrop
         FlowDirection VisualTargetFlowDirection { get; }
 
         /// <summary>
-        /// Gets and sets the text displayed in the DropDropEffects adorner.
+        /// Gets and sets the text displayed in the DropDropEffects Adorner and DropTargetHintAdorner.
         /// </summary>
         string DestinationText { get; set; }
 
         /// <summary>
-        /// Gets and sets the effect text displayed in the DropDropEffects adorner.
+        /// Gets and sets the effect text displayed in the DropDropEffects Adorner.
         /// </summary>
         string EffectText { get; set; }
 
@@ -151,5 +173,13 @@ namespace GongSolutions.Wpf.DragDrop
         /// Gets the current mode of the underlying routed event.
         /// </summary>
         EventType EventType { get; }
+
+        /// <summary>
+        /// Indicates if the drop target can accept the dragged data as a child item (applies to tree view items).
+        /// </summary>
+        /// <remarks>
+        /// Changing this value will update other properties.
+        /// </remarks>
+        bool AcceptChildItem { get; set; }
     }
 }

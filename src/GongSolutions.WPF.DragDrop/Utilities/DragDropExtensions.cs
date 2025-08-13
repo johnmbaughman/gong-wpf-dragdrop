@@ -1,16 +1,15 @@
+using System;
 using System.Windows;
+using System.Windows.Controls;
 using System.Windows.Media;
+using System.Windows.Media.Imaging;
 
 namespace GongSolutions.Wpf.DragDrop.Utilities
 {
-    using System;
-    using System.Windows.Controls;
-    using System.Windows.Media.Imaging;
-
     public static class DragDropExtensions
     {
         /// <summary>
-        /// Determines whether the given element is ignored on drag start (<see cref="DragDrop.DragSourceIgnore"/>).
+        /// Determines whether the given element is ignored on drag start (<see cref="DragDrop.DragSourceIgnoreProperty"/>).
         /// </summary>
         /// <param name="element">The given element.</param>
         /// <returns>Element is ignored or not.</returns>
@@ -20,7 +19,7 @@ namespace GongSolutions.Wpf.DragDrop.Utilities
         }
 
         /// <summary>
-        /// Determines whether the given element is ignored on drop action (<see cref="DragDrop.IsDragSource"/>).
+        /// Determines whether the given element is ignored on drop action (<see cref="DragDrop.IsDragSourceProperty"/>).
         /// </summary>
         /// <param name="element">The given element.</param>
         /// <returns>Element is ignored or not.</returns>
@@ -30,7 +29,7 @@ namespace GongSolutions.Wpf.DragDrop.Utilities
         }
 
         /// <summary>
-        /// Determines whether the given element is ignored on drop action (<see cref="DragDrop.IsDropTarget"/>).
+        /// Determines whether the given element is ignored on drop action (<see cref="DragDrop.IsDropTargetProperty"/>).
         /// </summary>
         /// <param name="element">The given element.</param>
         /// <returns>Element is ignored or not.</returns>
@@ -38,7 +37,7 @@ namespace GongSolutions.Wpf.DragDrop.Utilities
         {
             return element != null && DragDrop.GetIsDropTarget(element);
         }
-        
+
         /// <summary>
         /// Gets if drop position is directly over element
         /// </summary>
@@ -53,7 +52,7 @@ namespace GongSolutions.Wpf.DragDrop.Utilities
 
             var relativeItemPosition = element.TranslatePoint(new Point(0, 0), relativeToElement);
             var relativeDropPosition = new Point(dropPosition.X - relativeItemPosition.X, dropPosition.Y - relativeItemPosition.Y);
-            return VisualTreeHelper.GetDescendantBounds(element).Contains(relativeDropPosition); 
+            return VisualTreeExtensions.GetVisibleDescendantBounds(element).Contains(relativeDropPosition);
         }
 
         /// <summary>
@@ -78,6 +77,7 @@ namespace GongSolutions.Wpf.DragDrop.Utilities
                 factory.SetValue(FrameworkElement.VerticalAlignmentProperty, VerticalAlignment.Top);
                 template = new DataTemplate { VisualTree = factory };
             }
+
             return template;
         }
 
@@ -90,11 +90,13 @@ namespace GongSolutions.Wpf.DragDrop.Utilities
                 return null;
             }
 
-            var dpiX = DpiHelper.DpiX;
-            var dpiY = DpiHelper.DpiY;
-
             var bounds = VisualTreeHelper.GetDescendantBounds(target);
-            var dpiBounds = DpiHelper.LogicalRectToDevice(bounds);
+            var cropBounds = VisualTreeExtensions.GetVisibleDescendantBounds(target);
+
+            var dpiScale = VisualTreeHelper.GetDpi(target);
+            var dpiX = dpiScale.PixelsPerInchX;
+            var dpiY = dpiScale.PixelsPerInchY;
+            var dpiBounds = DpiHelper.LogicalRectToDevice(cropBounds, dpiScale.DpiScaleX, dpiScale.DpiScaleY);
 
             var pixelWidth = (int)Math.Ceiling(dpiBounds.Width);
             var pixelHeight = (int)Math.Ceiling(dpiBounds.Height);
@@ -109,13 +111,18 @@ namespace GongSolutions.Wpf.DragDrop.Utilities
             using (var ctx = dv.RenderOpen())
             {
                 var vb = new VisualBrush(target);
+
+                // vb.ViewportUnits = BrushMappingMode.Absolute;
+                // vb.Viewport = bounds;
+
                 if (flowDirection == FlowDirection.RightToLeft)
                 {
                     var transformGroup = new TransformGroup();
                     transformGroup.Children.Add(new ScaleTransform(-1, 1));
-                    transformGroup.Children.Add(new TranslateTransform(bounds.Size.Width - 1, 0));
+                    transformGroup.Children.Add(new TranslateTransform(bounds.Size.Width, 0));
                     ctx.PushTransform(transformGroup);
                 }
+
                 ctx.DrawRectangle(vb, null, new Rect(new Point(), bounds.Size));
             }
 

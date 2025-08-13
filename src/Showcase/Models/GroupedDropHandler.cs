@@ -9,6 +9,21 @@ namespace Showcase.WPF.DragDrop.Models
     /// </summary>
     public class GroupedDropHandler : IDropTarget
     {
+#if !NETCOREAPP3_1_OR_GREATER
+        /// <inheritdoc />
+        public void DragEnter(IDropInfo dropInfo)
+        {
+            // nothing here
+        }
+
+        /// <inheritdoc />
+        public void DropHint(IDropHintInfo dropHintInfo)
+        {
+            // nothing here
+        }
+#endif
+
+        /// <inheritdoc />
         public void DragOver(IDropInfo dropInfo)
         {
             // Call default DragOver method, cause most stuff should work by default
@@ -19,6 +34,15 @@ namespace Showcase.WPF.DragDrop.Models
             }
         }
 
+#if !NETCOREAPP3_1_OR_GREATER
+        /// <inheritdoc />
+        public void DragLeave(IDropInfo dropInfo)
+        {
+            // nothing here
+        }
+#endif
+
+        /// <inheritdoc />
         public void Drop(IDropInfo dropInfo)
         {
             // The default drop handler don't know how to set an item's group. You need to explicitly set the group on the dropped item like this.

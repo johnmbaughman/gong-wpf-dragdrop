@@ -11,40 +11,177 @@ using JetBrains.Annotations;
 namespace GongSolutions.Wpf.DragDrop
 {
     /// <summary>
-    /// Holds information about a the target of a drag drop operation.
+    /// Holds information about the target of a drag drop operation.
     /// </summary>
-    /// 
     /// <remarks>
-    /// The <see cref="DropInfo"/> class holds all of the framework's information about the current 
-    /// target of a drag. It is used by <see cref="IDropTarget.DragOver"/> method to determine whether 
+    /// The <see cref="DropInfo"/> class holds all the framework's information about the current
+    /// target of a drag. It is used by <see cref="IDropTarget.DragOver"/> method to determine whether
     /// the current drop target is valid, and by <see cref="IDropTarget.Drop"/> to perform the drop.
     /// </remarks>
     public class DropInfo : IDropInfo
     {
-        private ItemsControl itemParent = null;
-        private UIElement item = null;
+        private readonly DragEventArgs eventArgs;
+        private ItemsControl itemParent;
+        private bool? acceptChildItem;
+
+        /// <inheritdoc />
+        public object Data { get; set; }
+
+        /// <inheritdoc />
+        public IDragInfo DragInfo { get; protected set; }
+
+        /// <inheritdoc />
+        public Point DropPosition { get; protected set; }
+
+        /// <inheritdoc />
+        public Type DropTargetAdorner { get; set; }
+
+        /// <inheritdoc />
+        public Type DropTargetHintAdorner { get; set; }
+
+        /// <inheritdoc />
+        public DropHintState DropTargetHintState { get; set; }
+
+        /// <inheritdoc />
+        public string DropHintText { get; set; }
+
+        /// <inheritdoc />
+        public DragDropEffects Effects { get; set; }
+
+        /// <inheritdoc />
+        public int InsertIndex { get; protected set; }
+
+        /// <inheritdoc />
+        public int UnfilteredInsertIndex
+        {
+            get
+            {
+                var insertIndex = this.InsertIndex;
+                if (this.itemParent is null)
+                {
+                    return insertIndex;
+                }
+
+                var itemSourceAsList = this.itemParent.ItemsSource.TryGetList();
+                if (itemSourceAsList != null && this.itemParent.Items != null && this.itemParent.Items.Count != itemSourceAsList.Count)
+                {
+                    if (insertIndex >= 0 && insertIndex < this.itemParent.Items.Count)
+                    {
+                        var indexOf = itemSourceAsList.IndexOf(this.itemParent.Items[insertIndex]);
+                        if (indexOf >= 0)
+                        {
+                            return indexOf;
+                        }
+                    }
+                    else if (this.itemParent.Items.Count > 0 && insertIndex == this.itemParent.Items.Count)
+                    {
+                        var indexOf = itemSourceAsList.IndexOf(this.itemParent.Items[insertIndex - 1]);
+                        if (indexOf >= 0)
+                        {
+                            return indexOf + 1;
+                        }
+                    }
+                }
+
+                return insertIndex;
+            }
+        }
+
+        /// <inheritdoc />
+        public IEnumerable TargetCollection { get; protected set; }
+
+        /// <inheritdoc />
+        public object TargetItem { get; protected set; }
+
+        /// <inheritdoc />
+        public CollectionViewGroup TargetGroup { get; protected set; }
+
+        /// <inheritdoc />
+        public ScrollViewer TargetScrollViewer { get; protected set; }
+
+        /// <inheritdoc />
+        public ScrollingMode TargetScrollingMode { get; set; }
+
+        /// <inheritdoc />
+        public UIElement VisualTarget { get; protected set; }
+
+        /// <inheritdoc />
+        public UIElement VisualTargetItem { get; protected set; }
+
+        /// <inheritdoc />
+        public Orientation VisualTargetOrientation { get; protected set; }
+
+        /// <inheritdoc />
+        public FlowDirection VisualTargetFlowDirection { get; protected set; }
+
+        /// <inheritdoc />
+        public string DestinationText { get; set; }
+
+        /// <inheritdoc />
+        public string EffectText { get; set; }
+
+        /// <inheritdoc />
+        public RelativeInsertPosition InsertPosition { get; protected set; }
+
+        /// <inheritdoc />
+        public DragDropKeyStates KeyStates { get; protected set; }
+
+        /// <inheritdoc />
+        public bool NotHandled { get; set; }
+
+        /// <inheritdoc />
+        public bool IsSameDragDropContextAsSource
+        {
+            get
+            {
+                // Check if DragInfo stuff exists
+                if (this.DragInfo?.VisualSource is null)
+                {
+                    return true;
+                }
+
+                // A target should be exists
+                if (this.VisualTarget is null)
+                {
+                    return true;
+                }
+
+                // Source element has a drag context constraint, we need to check the target property matches.
+                var sourceContext = DragDrop.GetDragDropContext(this.DragInfo.VisualSource);
+                var targetContext = DragDrop.GetDragDropContext(this.VisualTarget);
+
+                return string.Equals(sourceContext, targetContext)
+                       || string.IsNullOrEmpty(targetContext);
+            }
+        }
+
+        /// <inheritdoc />
+        public EventType EventType { get; }
+
+        /// <inheritdoc />
+        public bool AcceptChildItem
+        {
+            get => this.acceptChildItem.GetValueOrDefault();
+            set
+            {
+                if (value != this.acceptChildItem.GetValueOrDefault())
+                {
+                    this.acceptChildItem = value;
+                    this.Update();
+                }
+            }
+        }
 
         /// <summary>
         /// Initializes a new instance of the DropInfo class.
         /// </summary>
-        /// 
-        /// <param name="sender">
-        /// The sender of the drag event.
-        /// </param>
-        /// 
-        /// <param name="e">
-        /// The drag event.
-        /// </param>
-        /// 
-        /// <param name="dragInfo">
-        /// Information about the source of the drag, if the drag came from within the framework.
-        /// </param>
-        /// 
-        /// <param name="eventType">
-        /// The type of the underlying event (tunneled or bubbled).
-        /// </param>
-        public DropInfo(object sender, DragEventArgs e, [CanBeNull] DragInfo dragInfo, EventType eventType)
+        /// <param name="sender">The sender of the drop event.</param>
+        /// <param name="e">The drag event arguments.</param>
+        /// <param name="dragInfo">Information about the drag source, if the drag came from within the framework.</param>
+        /// <param name="eventType">The type of the underlying event (tunneled or bubbled).</param>
+        public DropInfo(object sender, DragEventArgs e, [CanBeNull] IDragInfo dragInfo, EventType eventType)
         {
+            this.eventArgs = e;
             this.DragInfo = dragInfo;
             this.KeyStates = e.KeyStates;
             this.EventType = eventType;
@@ -84,20 +221,22 @@ namespace GongSolutions.Wpf.DragDrop
             // visual target can be null, so give us a point...
             this.DropPosition = this.VisualTarget != null ? e.GetPosition(this.VisualTarget) : new Point();
 
-            if (this.VisualTarget is TabControl)
+            this.Update();
+        }
+
+        private void Update()
+        {
+            if (this.VisualTarget is TabControl && !HitTestUtilities.HitTest4Type<TabPanel>(this.VisualTarget, this.DropPosition))
             {
-                if (!HitTestUtilities.HitTest4Type<TabPanel>(this.VisualTarget, this.DropPosition))
-                {
-                    return;
-                }
+                return;
             }
 
-            if (this.VisualTarget is ItemsControl)
+            if (this.VisualTarget is ItemsControl itemsControl)
             {
-                var itemsControl = (ItemsControl)this.VisualTarget;
                 //System.Diagnostics.Debug.WriteLine(">>> Name = {0}", itemsControl.Name);
+
                 // get item under the mouse
-                item = itemsControl.GetItemContainerAt(this.DropPosition);
+                var item = itemsControl.GetItemContainerAt(this.DropPosition);
                 var directlyOverItem = item != null;
 
                 this.TargetGroup = itemsControl.FindGroup(this.DropPosition);
@@ -108,49 +247,50 @@ namespace GongSolutions.Wpf.DragDrop
                 {
                     // ok, no item found, so maybe we can found an item at top, left, right or bottom
                     item = itemsControl.GetItemContainerAt(this.DropPosition, this.VisualTargetOrientation);
-                    directlyOverItem = DropPosition.DirectlyOverElement(this.item, itemsControl);
+                    directlyOverItem = this.DropPosition.DirectlyOverElement(item, itemsControl);
                 }
 
-                if (item == null && this.TargetGroup != null && this.TargetGroup.IsBottomLevel)
+                if (item == null && this.TargetGroup is { IsBottomLevel: true })
                 {
                     var itemData = this.TargetGroup.Items.FirstOrDefault();
                     if (itemData != null)
                     {
                         item = itemsControl.ItemContainerGenerator.ContainerFromItem(itemData) as UIElement;
-                        directlyOverItem = DropPosition.DirectlyOverElement(this.item, itemsControl);
+                        directlyOverItem = this.DropPosition.DirectlyOverElement(item, itemsControl);
                     }
                 }
 
                 if (item != null)
                 {
-                    itemParent = ItemsControl.ItemsControlFromItemContainer(item);
-                    this.VisualTargetOrientation = itemParent.GetItemsPanelOrientation();
-                    this.VisualTargetFlowDirection = itemParent.GetItemsPanelFlowDirection();
+                    this.itemParent = ItemsControl.ItemsControlFromItemContainer(item);
+                    this.VisualTargetOrientation = this.itemParent.GetItemsPanelOrientation();
+                    this.VisualTargetFlowDirection = this.itemParent.GetItemsPanelFlowDirection();
 
-                    this.InsertIndex = itemParent.ItemContainerGenerator.IndexFromContainer(item);
-                    this.TargetCollection = itemParent.ItemsSource ?? itemParent.Items;
+                    this.InsertIndex = this.itemParent.ItemContainerGenerator.IndexFromContainer(item);
+                    this.TargetCollection = this.itemParent.ItemsSource ?? this.itemParent.Items;
 
                     var tvItem = item as TreeViewItem;
 
                     if (directlyOverItem || tvItem != null)
                     {
                         this.VisualTargetItem = item;
-                        this.TargetItem = itemParent.ItemContainerGenerator.ItemFromContainer(item);
+                        this.TargetItem = this.itemParent.ItemContainerGenerator.ItemFromContainer(item);
                     }
 
-                    var expandedTVItem = tvItem != null && tvItem.HasHeader && tvItem.HasItems && tvItem.IsExpanded;
-                    var itemRenderSize = expandedTVItem ? tvItem.GetHeaderSize() : item.RenderSize;
+                    var tvItemIsExpanded = tvItem is { HasHeader: true, HasItems: true, IsExpanded: true };
+                    var itemRenderSize = tvItemIsExpanded ? tvItem.GetHeaderSize() : item.RenderSize;
+                    this.acceptChildItem ??= tvItem != null;
 
                     if (this.VisualTargetOrientation == Orientation.Vertical)
                     {
-                        var currentYPos = e.GetPosition(item).Y;
+                        var currentYPos = this.eventArgs.GetPosition(item).Y;
                         var targetHeight = itemRenderSize.Height;
 
                         var topGap = targetHeight * 0.25;
                         var bottomGap = targetHeight * 0.75;
                         if (currentYPos > targetHeight / 2)
                         {
-                            if (expandedTVItem && (currentYPos < topGap || currentYPos > bottomGap))
+                            if (tvItemIsExpanded && (currentYPos < topGap || currentYPos > bottomGap))
                             {
                                 this.VisualTargetItem = tvItem.ItemContainerGenerator.ContainerFromIndex(0) as UIElement;
                                 this.TargetItem = this.VisualTargetItem != null ? tvItem.ItemContainerGenerator.ItemFromContainer(this.VisualTargetItem) : null;
@@ -169,25 +309,27 @@ namespace GongSolutions.Wpf.DragDrop
                             this.InsertPosition = RelativeInsertPosition.BeforeTargetItem;
                         }
 
-                        if (currentYPos > topGap && currentYPos < bottomGap)
+                        if (this.AcceptChildItem && currentYPos > topGap && currentYPos < bottomGap)
                         {
                             if (tvItem != null)
                             {
                                 this.TargetCollection = tvItem.ItemsSource ?? tvItem.Items;
                                 this.InsertIndex = this.TargetCollection != null ? this.TargetCollection.OfType<object>().Count() : 0;
                             }
+
                             this.InsertPosition |= RelativeInsertPosition.TargetItemCenter;
                         }
-                        //System.Diagnostics.Debug.WriteLine("==> DropInfo: pos={0}, idx={1}, Y={2}, Item={3}", this.InsertPosition, this.InsertIndex, currentYPos, item);
+
+                        // System.Diagnostics.Debug.WriteLine($"==> DropInfo: pos={this.InsertPosition}, index={this.InsertIndex}, currentXPos={currentXPos}, Item={this.item}");
                     }
                     else
                     {
-                        var currentXPos = e.GetPosition(item).X;
+                        var currentXPos = this.eventArgs.GetPosition(item).X;
                         var targetWidth = itemRenderSize.Width;
 
                         if (this.VisualTargetFlowDirection == FlowDirection.RightToLeft)
                         {
-                            if (currentXPos > targetWidth / 2)
+                            if (currentXPos < targetWidth / 2)
                             {
                                 this.InsertPosition = RelativeInsertPosition.BeforeTargetItem;
                             }
@@ -210,16 +352,18 @@ namespace GongSolutions.Wpf.DragDrop
                             }
                         }
 
-                        if (currentXPos > targetWidth * 0.25 && currentXPos < targetWidth * 0.75)
+                        if (this.AcceptChildItem && currentXPos > targetWidth * 0.25 && currentXPos < targetWidth * 0.75)
                         {
                             if (tvItem != null)
                             {
                                 this.TargetCollection = tvItem.ItemsSource ?? tvItem.Items;
                                 this.InsertIndex = this.TargetCollection != null ? this.TargetCollection.OfType<object>().Count() : 0;
                             }
+
                             this.InsertPosition |= RelativeInsertPosition.TargetItemCenter;
                         }
-                        //System.Diagnostics.Debug.WriteLine("==> DropInfo: pos={0}, idx={1}, X={2}, Item={3}", this.InsertPosition, this.InsertIndex, currentXPos, item);
+
+                        // System.Diagnostics.Debug.WriteLine($"==> DropInfo: pos={this.InsertPosition}, index={this.InsertIndex}, currentXPos={currentXPos}, Item={this.item}");
                     }
                 }
                 else
@@ -234,211 +378,6 @@ namespace GongSolutions.Wpf.DragDrop
                 this.VisualTargetItem = this.VisualTarget;
             }
         }
-
-        /// <summary>
-        /// Gets the drag data.
-        /// </summary>
-        /// 
-        /// <remarks>
-        /// If the drag came from within the framework, this will hold:
-        /// 
-        /// - The dragged data if a single item was dragged.
-        /// - A typed IEnumerable if multiple items were dragged.
-        /// </remarks>
-        public object Data { get; private set; }
-
-        /// <summary>
-        /// Gets a <see cref="DragInfo"/> object holding information about the source of the drag, 
-        /// if the drag came from within the framework.
-        /// </summary>
-        public IDragInfo DragInfo { get; private set; }
-
-        /// <summary>
-        /// Gets the mouse position relative to the VisualTarget
-        /// </summary>
-        public Point DropPosition { get; private set; }
-
-        /// <summary>
-        /// Gets or sets the class of drop target to display.
-        /// </summary>
-        /// 
-        /// <remarks>
-        /// The standard drop target adorner classes are held in the <see cref="DropTargetAdorners"/>
-        /// class.
-        /// </remarks>
-        public Type DropTargetAdorner { get; set; }
-
-        /// <summary>
-        /// Gets or sets the allowed effects for the drop.
-        /// </summary>
-        /// 
-        /// <remarks>
-        /// This must be set to a value other than <see cref="DragDropEffects.None"/> by a drop handler in order 
-        /// for a drop to be possible.
-        /// </remarks>
-        public DragDropEffects Effects { get; set; }
-
-        /// <summary>
-        /// Gets the current insert position within <see cref="TargetCollection"/>.
-        /// </summary>
-        public int InsertIndex { get; private set; }
-
-        /// <summary>
-        /// Gets the current insert position within the source (unfiltered) <see cref="TargetCollection"/>.
-        /// </summary>
-        /// <remarks>
-        /// This should be only used in a Drop action.
-        /// This works only correct with different objects (string, int, etc won't work correct).
-        /// </remarks>
-        public int UnfilteredInsertIndex
-        {
-            get
-            {
-                var insertIndex = this.InsertIndex;
-                if (itemParent != null)
-                {
-                    var itemSourceAsList = itemParent.ItemsSource.TryGetList();
-                    if (itemSourceAsList != null && itemParent.Items != null && itemParent.Items.Count != itemSourceAsList.Count)
-                    {
-                        if (insertIndex >= 0 && insertIndex < itemParent.Items.Count)
-                        {
-                            var indexOf = itemSourceAsList.IndexOf(itemParent.Items[insertIndex]);
-                            if (indexOf >= 0)
-                            {
-                                return indexOf;
-                            }
-                        }
-                        else if (itemParent.Items.Count > 0 && insertIndex == itemParent.Items.Count)
-                        {
-                            var indexOf = itemSourceAsList.IndexOf(itemParent.Items[insertIndex - 1]);
-                            if (indexOf >= 0)
-                            {
-                                return indexOf + 1;
-                            }
-                        }
-                    }
-                }
-                return insertIndex;
-            }
-        }
-
-        /// <summary>
-        /// Gets the collection that the target ItemsControl is bound to.
-        /// </summary>
-        /// 
-        /// <remarks>
-        /// If the current drop target is unbound or not an ItemsControl, this will be null.
-        /// </remarks>
-        public IEnumerable TargetCollection { get; private set; }
-
-        /// <summary>
-        /// Gets the object that the current drop target is bound to.
-        /// </summary>
-        /// 
-        /// <remarks>
-        /// If the current drop target is unbound or not an ItemsControl, this will be null.
-        /// </remarks>
-        public object TargetItem { get; private set; }
-
-        /// <summary>
-        /// Gets the current group target.
-        /// </summary>
-        /// 
-        /// <remarks>
-        /// If the drag is currently over an ItemsControl with groups, describes the group that
-        /// the drag is currently over.
-        /// </remarks>
-        public CollectionViewGroup TargetGroup { get; private set; }
-
-        /// <summary>
-        /// Gets the ScrollViewer control for the visual target.
-        /// </summary>
-        public ScrollViewer TargetScrollViewer { get; private set; }
-
-        /// <summary>
-        /// Gets or Sets the ScrollingMode for the drop action.
-        /// </summary>
-        public ScrollingMode TargetScrollingMode { get; set; }
-
-        /// <summary>
-        /// Gets the control that is the current drop target.
-        /// </summary>
-        public UIElement VisualTarget { get; private set; }
-
-        /// <summary>
-        /// Gets the item in an ItemsControl that is the current drop target.
-        /// </summary>
-        /// 
-        /// <remarks>
-        /// If the current drop target is unbound or not an ItemsControl, this will be null.
-        /// </remarks>
-        public UIElement VisualTargetItem { get; private set; }
-
-        /// <summary>
-        /// Gets the orientation of the current drop target.
-        /// </summary>
-        public Orientation VisualTargetOrientation { get; private set; }
-
-        /// <summary>
-        /// Gets the orientation of the current drop target.
-        /// </summary>
-        public FlowDirection VisualTargetFlowDirection { get; private set; }
-
-        /// <summary>
-        /// Gets and sets the text displayed in the DropDropEffects adorner.
-        /// </summary>
-        public string DestinationText { get; set; }
-
-        /// <summary>
-        /// Gets and sets the effect text displayed in the DropDropEffects adorner.
-        /// </summary>
-        public string EffectText { get; set; }
-
-        /// <summary>
-        /// Gets the relative position the item will be inserted to compared to the TargetItem
-        /// </summary>
-        public RelativeInsertPosition InsertPosition { get; private set; }
-
-        /// <summary>
-        /// Gets a flag enumeration indicating the current state of the SHIFT, CTRL, and ALT keys, as well as the state of the mouse buttons.
-        /// </summary>
-        public DragDropKeyStates KeyStates { get; private set; }
-
-        public bool NotHandled { get; set; }
-
-        /// <summary>
-        /// Gets a value indicating whether the target is in the same context as the source, <see cref="DragDrop.DragDropContextProperty" />.
-        /// </summary>
-        public bool IsSameDragDropContextAsSource
-        {
-            get
-            {
-                // Check if DragInfo stuff exists
-                if (this.DragInfo == null || this.DragInfo.VisualSource == null)
-                {
-                    return true;
-                }
-                // A target should be exists
-                if (this.VisualTarget == null)
-                {
-                    return true;
-                }
-
-                // Source element has a drag context constraint, we need to check the target property matches.
-                var sourceContext = this.DragInfo.VisualSource.GetValue(DragDrop.DragDropContextProperty) as string;
-                if (String.IsNullOrEmpty(sourceContext))
-                {
-                    return true;
-                }
-                var targetContext = this.VisualTarget.GetValue(DragDrop.DragDropContextProperty) as string;
-                return string.Equals(sourceContext, targetContext);
-            }
-        }
-
-        /// <summary>
-        /// Gets the current mode of the underlying routed event.
-        /// </summary>
-        public EventType EventType { get; }
     }
 
     [Flags]

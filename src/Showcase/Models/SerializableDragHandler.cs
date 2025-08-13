@@ -19,9 +19,10 @@ namespace Showcase.WPF.DragDrop.Models
     {
         private bool alreadyDropped = false;
 
+        /// <inheritdoc />
         public void StartDrag(IDragInfo dragInfo)
         {
-            alreadyDropped = false;
+            this.alreadyDropped = false;
             var items = dragInfo.SourceItems.OfType<object>().ToList();
             var wrapper = new SerializableWrapper()
                           {
@@ -33,19 +34,22 @@ namespace Showcase.WPF.DragDrop.Models
             dragInfo.Effects = dragInfo.Data != null ? DragDropEffects.Copy | DragDropEffects.Move : DragDropEffects.None;
         }
 
+        /// <inheritdoc />
         public bool CanStartDrag(IDragInfo dragInfo)
         {
             return true;
         }
 
+        /// <inheritdoc />
         public void Dropped(IDropInfo dropInfo)
         {
-            alreadyDropped = true;
+            this.alreadyDropped = true;
         }
 
+        /// <inheritdoc />
         public void DragDropOperationFinished(DragDropEffects operationResult, IDragInfo dragInfo)
         {
-            if (alreadyDropped || dragInfo == null)
+            if (this.alreadyDropped || dragInfo == null)
             {
                 return;
             }
@@ -64,15 +68,18 @@ namespace Showcase.WPF.DragDrop.Models
                             sourceList.Remove(o);
                         }
                     }
-                    alreadyDropped = true;
+
+                    this.alreadyDropped = true;
                 }
             }
         }
 
+        /// <inheritdoc />
         public void DragCancelled()
         {
         }
 
+        /// <inheritdoc />
         public bool TryCatchOccurredException(Exception exception)
         {
             return false;

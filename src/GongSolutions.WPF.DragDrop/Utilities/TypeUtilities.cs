@@ -3,6 +3,9 @@ using System.Collections.Generic;
 using System.ComponentModel;
 using System.Linq;
 using System.Collections;
+using System.Collections.ObjectModel;
+using JetBrains.Annotations;
+using System.Diagnostics;
 
 namespace GongSolutions.Wpf.DragDrop.Utilities
 {
@@ -10,22 +13,33 @@ namespace GongSolutions.Wpf.DragDrop.Utilities
     {
         public static IEnumerable CreateDynamicallyTypedList(IEnumerable source)
         {
-            var type = GetCommonBaseClass(source);
-            var listType = typeof(List<>).MakeGenericType(type);
-            var addMethod = listType.GetMethod("Add");
-            var list = listType.GetConstructor(Type.EmptyTypes).Invoke(null);
+            var sourceObjects = source.Cast<object>().ToArray();
+            var type = GetCommonBaseClass(sourceObjects.Select(o => o.GetType()).Distinct().ToArray());
 
-            foreach (var o in source)
+            try
             {
-                addMethod.Invoke(list, new[] { o });
+                var listType = typeof(List<>).MakeGenericType(type);
+                if (listType.GetConstructor(Type.EmptyTypes)?.Invoke(null) is IList list)
+                {
+                    foreach (var o in sourceObjects)
+                    {
+                        list.Add(o);
+                    }
+
+                    return list;
+                }
+            }
+            catch (Exception exception)
+            {
+                Trace.TraceError($"Could not create a typed list from the source enumerable! {exception}");
             }
 
-            return (IEnumerable)list;
+            return sourceObjects;
         }
 
         public static Type GetCommonBaseClass(IEnumerable e)
         {
-            var types = e.Cast<object>().Select(o => o.GetType()).ToArray<Type>();
+            var types = e.Cast<object>().Select(o => o.GetType()).Distinct().ToArray();
             return GetCommonBaseClass(types);
         }
 
@@ -36,25 +50,25 @@ namespace GongSolutions.Wpf.DragDrop.Utilities
                 return typeof(object);
             }
 
-            var ret = types[0];
+            var classType = types[0];
 
             for (var i = 1; i < types.Length; ++i)
             {
-                if (types[i].IsAssignableFrom(ret))
+                if (types[i].IsAssignableFrom(classType))
                 {
-                    ret = types[i];
+                    classType = types[i];
                 }
                 else
                 {
                     // This will always terminate when ret == typeof(object)
-                    while (!ret.IsAssignableFrom(types[i]))
+                    while (classType is not null && !classType.IsAssignableFrom(types[i]))
                     {
-                        ret = ret.BaseType;
+                        classType = classType.BaseType;
                     }
                 }
             }
 
-            return ret;
+            return classType;
         }
 
         /// <summary>
@@ -65,15 +79,55 @@ namespace GongSolutions.Wpf.DragDrop.Utilities
         /// <returns>Returns a list.</returns>
         public static IList TryGetList(this IEnumerable enumerable)
         {
-            if (enumerable is ICollectionView)
+            if (enumerable is ICollectionView collectionView)
             {
-                return ((ICollectionView)enumerable).SourceCollection as IList;
+                return collectionView.SourceCollection as IList;
             }
-            else
+
+            if (enumerable is IList list)
             {
-                var list = enumerable as IList;
-                return list ?? (enumerable != null ? enumerable.OfType<object>().ToList() : null);
+                return list;
             }
+
+            return enumerable?.OfType<object>().ToList();
+        }
+
+        /// <summary>
+        /// Checks if the given collection is a ObservableCollection&lt;&gt;
+        /// </summary>
+        /// <param name="collection">The collection to test.</param>
+        /// <returns>True if the collection is a ObservableCollection&lt;&gt;</returns>
+        public static bool IsObservableCollection([CanBeNull] this IList collection)
+        {
+            return collection != null && IsObservableCollectionType(collection.GetType());
+        }
+
+        private static bool IsObservableCollectionType([CanBeNull] Type type)
+        {
+            if (type is null || !typeof(IList).IsAssignableFrom(type))
+            {
+                return false;
+            }
+
+            if (type.IsGenericType && type.GetGenericTypeDefinition() == typeof(ObservableCollection<>))
+            {
+                return true;
+            }
+
+            return IsObservableCollectionType(type.BaseType);
+        }
+
+        /// <summary>
+        /// Checks if both collections are the same ObservableCollection&lt;&gt;
+        /// </summary>
+        /// <param name="collection1">The first collection to test.</param>
+        /// <param name="collection2">The second collection to test.</param>
+        /// <returns>True if both collections are the same ObservableCollection&lt;&gt;</returns>
+        public static bool IsSameObservableCollection(this IList collection1, IList collection2)
+        {
+            return collection1 != null
+                   && ReferenceEquals(collection1, collection2)
+                   && collection1.IsObservableCollection();
         }
     }
 }
